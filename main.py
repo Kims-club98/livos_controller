@@ -1,25 +1,22 @@
-# streamlit 앱 실행파일
+# main.py
+import streamlit as st
 
-# --- PWA Manifest 및 아이콘 매핑 메타태그 삽입 ---
+# 1. st.set_page_config는 import 직후 가장 최상단에 1회만 선언합니다.
 st.set_page_config(
-    page_title="LIVOS Controller",
+    page_title="LIVOS 급수 통합 제어",
     page_icon="🌱",
     layout="wide"
 )
 
-# PWABuilder 호환용 웹 매니페스트 메타 정보 주입
+# 2. PWABuilder 호환용 웹 매니페스트 메타 정보 주입
 manifest_code = """
 <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkxJVk9TIEZhcm0gQ29udHJvbGxlciIsCiAgInNob3J0X25hbWUiIjogIkxJVk9TIiwKICAic3RhcnRfdXJsIjogIi8iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOGZhZmMiLAogICJ0aGVtZV9jb2xvciI6ICIjMjJjNTVlIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0tpbXMtY2x1Yjk4L2xpdm9zX2NvbnRyb2xsZXIvbWFpbi9zdGF0aWMvaWNvbi01MTIucG5nIiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6ICJhbnkgbWFza2FibGUiCiAgICB9CiAgXQp9">
 """
 st.markdown(manifest_code, unsafe_allow_html=True)
 
-# main.py
-import streamlit as st
-# 기존 다른 모듈 로드는 set_page_config 아래에 위치하도록 합니다.
+# 3. 내부 모듈 불러오기 (set_page_config 이후 위치)
 from control.state_manager import init_device_states
 from ux.device import render_device_cards
-
-st.set_page_config(page_title="LIVOS 급수 통합 제어", layout="wide")
 
 st.title("🚰 LIVOS 급수 제어 대시보드")
 
@@ -49,6 +46,3 @@ st.divider()
 
 # 20개 장비 카드 그리드 출력
 render_device_cards()
-
-## 실행
-# python -m streamlit run main.py
