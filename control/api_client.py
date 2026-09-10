@@ -8,7 +8,6 @@ try:
 except ImportError:
     pass
 
-# 반드시 절대 경로(https://...)로 지정해야 Streamlit 내부 경로로 요청되지 않습니다.
 BASE_URL = "https://kr.api.livos.io/nanofarm/v1/nanofarm/control"
 
 USER_TOKEN = None
@@ -24,21 +23,13 @@ except Exception:
     USER_TOKEN = os.getenv("LIVOS_TOKEN") or os.getenv("LIVOS_USER_TOKEN")
 
 if USER_TOKEN:
-    USER_TOKEN = USER_TOKEN.strip()
-    if USER_TOKEN.startswith("token "):
-        USER_TOKEN = USER_TOKEN.replace("token ", "").strip()
-    elif USER_TOKEN.startswith("Bearer "):
-        USER_TOKEN = USER_TOKEN.replace("Bearer ", "").strip()
-
-HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": f"token {USER_TOKEN}" if USER_TOKEN else ""
-}
+    # 순수 토큰 값만 남기기
+    USER_TOKEN = USER_TOKEN.strip().replace("token ", "").replace("Bearer ", "")
 
 def send_water_control(serial_number: str, action: str) -> bool:
     if not USER_TOKEN:
         import streamlit as st
-        st.error("❌ LIVOS API 토큰이 설정되지 않았습니다. Secrets나 .env를 확인해 주세요.")
+        st.error("❌ LIVOS API 토큰이 설정되지 않았습니다.")
         return False
 
     payload = {
@@ -48,21 +39,35 @@ def send_water_control(serial_number: str, action: str) -> bool:
         }
     }
     
-    print(f"\n[SEND] Target: {BASE_URL} | Serial: {serial_number}")
+    # Knox Token 호환성을 위해 3가지 표준 포맷으로 시도
+    auth_formats = [
+        f"Bearer {USER_TOKEN}",
+        f"token {USER_TOKEN}",
+        USER_TOKEN
+    ]
     
-    try:
-        # requests.post 호출 시 BASE_URL이 문자열 그대로 전달되도록 보장
-        response = requests.post(BASE_URL, json=payload, headers=HEADERS, timeout=5)
-        print(f"[RECV] Status Code: {response.status_code}")
+    for auth_val in auth_formats:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": auth_val
+        }
         
-        if response.status_code != 200:
-            import streamlit as st
-            st.error(f"[{serial_number}] API 오류 ({response.status_code}): {response.text}")
-            return False
+        try:
+            response = requests.post(BASE_URL, json=payload, headers=headers, timeout=5)
+            print(f"[TRY AUTH] Header: {auth_val[:10]}... | Status: {response.status_code}")
             
-        return True
-    except Exception as e:
-        print(f"[ERROR]: {e}")
-        import streamlit as st
-        st.error(f"[{serial_number}] 통신 예외 발생: {e}")
-        return False
+            if response.status_code == 200:
+                print(f"[SUCCESS] 시리얼: {serial_number} 급수 제어 성공!")
+                return True
+            elif response.status_code != 401:
+                # 401 이외의 에러(예: 400, 404 등)는 토큰 형식이 아닌 파라미터 문제이므로 중단
+                import streamlit as st
+                st.error(f"[{serial_number}] API 에러 ({response.status_code}): {response.text}")
+                return False
+        except Exception as e:
+            print(f"[ERROR]: {e}")
+            
+    # 3가지 방식 모두 401 실패 시 출력
+    import streamlit as st
+    st.error(f"[{serial_number}] 인증 실패 (401): 토큰 값이 만료되었거나 올바르지 않습니다.")
+    return False
