@@ -10,7 +10,7 @@ except ImportError:
 
 BASE_URL = "https://kr.api.livos.io/nanofarm/v1/nanofarm/control"
 
-# Streamlit Cloud Secrets 우선 참조 -> 로컬 .env 환경변수 차선 참조
+# 1. Streamlit Cloud Secrets 또는 .env에서 토큰 가져오기
 USER_TOKEN = None
 try:
     import streamlit as st
@@ -23,32 +23,36 @@ try:
 except Exception:
     USER_TOKEN = os.getenv("LIVOS_TOKEN") or os.getenv("LIVOS_USER_TOKEN")
 
-# 토큰 값이 Bearer로 시작하면 그대로 쓰고, 아니면 'token ' 접두어 활용
-if USER_TOKEN and not USER_TOKEN.startswith("Bearer ") and not USER_TOKEN.startswith("token "):
-    AUTH_HEADER_VALUE = f"token {USER_TOKEN}" # 만약 기존에 'token 토큰값'으로 성공하셨다면 이 형식을 유지합니다.
-else:
-    AUTH_HEADER_VALUE = USER_TOKEN if USER_TOKEN else ""
+# 토큰 값 앞뒤 공백 및 혹시 붙어있을 접두어 정리
+if USER_TOKEN:
+    USER_TOKEN = USER_TOKEN.strip()
+    if USER_TOKEN.startswith("token "):
+        USER_TOKEN = USER_TOKEN.replace("token ", "").strip()
+    elif USER_TOKEN.startswith("Bearer "):
+        USER_TOKEN = USER_TOKEN.replace("Bearer ", "").strip()
 
+# 2. 'token {TOKEN}' 규격 적용
 HEADERS = {
     "Content-Type": "application/json",
-    "Authorization": AUTH_HEADER_VALUE
+    "Authorization": f"token {USER_TOKEN}" if USER_TOKEN else ""
 }
 
 def send_water_control(serial_number: str, action: str) -> bool:
     if not USER_TOKEN:
         import streamlit as st
-        st.error("LIVOS API 토큰이 설정되지 않았습니다. Secrets나 .env를 확인해 주세요.")
+        st.error("❌ LIVOS API 토큰이 설정되지 않았습니다. Secrets나 .env를 확인해 주세요.")
         print("[ERROR] USER_TOKEN이 None입니다.")
         return False
 
     payload = {
         "serialNumber": serial_number,
         "control": {
-            "waterLevel": action
+            "waterLevel": action  # "on", "off", "auto"
         }
     }
     
     print(f"\n[SEND] Serial: {serial_number}, Payload: {payload}")
+    print(f"[AUTH] Header: {HEADERS['Authorization'][:12]}...")
     
     try:
         response = requests.post(BASE_URL, json=payload, headers=HEADERS, timeout=5)
@@ -57,9 +61,10 @@ def send_water_control(serial_number: str, action: str) -> bool:
         
         if response.status_code != 200:
             import streamlit as st
-            st.error(f"[{serial_number}] API 인증 실패 ({response.status_code}): {response.text}")
+            st.error(f"[{serial_number}] API 호출 실패 ({response.status_code}): {response.text}")
+            return False
             
-        return response.status_code == 200
+        return True
     except Exception as e:
         print(f"[ERROR]: {e}")
         import streamlit as st
