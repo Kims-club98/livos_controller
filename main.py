@@ -15,6 +15,7 @@ st.markdown(manifest_code, unsafe_allow_html=True)
 
 # main.py
 import streamlit as st
+# 기존 다른 모듈 로드는 set_page_config 아래에 위치하도록 합니다.
 from control.state_manager import init_device_states
 from ux.device import render_device_cards
 
