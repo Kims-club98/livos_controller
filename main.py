@@ -1,7 +1,7 @@
 # main.py
 import streamlit as st
 
-# 1. st.set_page_config는 import 직후 가장 최상단에 1회만 선언합니다.
+# 1. st.set_page_config는 import 직후 가장 최상단에 단 1회만 위치해야 합니다.
 st.set_page_config(
     page_title="LIVOS 급수 통합 제어",
     page_icon="🌱",
@@ -14,7 +14,7 @@ manifest_code = """
 """
 st.markdown(manifest_code, unsafe_allow_html=True)
 
-# 3. 내부 모듈 불러오기 (set_page_config 이후 위치)
+# 3. 내부 모듈 불러오기 (set_page_config 이후에 위치)
 from control.state_manager import init_device_states
 from ux.device import render_device_cards
 
