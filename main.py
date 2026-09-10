@@ -1,4 +1,18 @@
 # streamlit 앱 실행파일
+
+# --- PWA Manifest 및 아이콘 매핑 메타태그 삽입 ---
+st.set_page_config(
+    page_title="LIVOS Controller",
+    page_icon="🌱",
+    layout="wide"
+)
+
+# PWABuilder 호환용 웹 매니페스트 메타 정보 주입
+manifest_code = """
+<link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkxJVk9TIEZhcm0gQ29udHJvbGxlciIsCiAgInNob3J0X25hbWUiIjogIkxJVk9TIiwKICAic3RhcnRfdXJsIjogIi8iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOGZhZmMiLAogICJ0aGVtZV9jb2xvciI6ICIjMjJjNTVlIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0tpbXMtY2x1Yjk4L2xpdm9zX2NvbnRyb2xsZXIvbWFpbi9zdGF0aWMvaWNvbi01MTIucG5nIiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6ICJhbnkgbWFza2FibGUiCiAgICB9CiAgXQp9">
+"""
+st.markdown(manifest_code, unsafe_allow_html=True)
+
 # main.py
 import streamlit as st
 from control.state_manager import init_device_states
