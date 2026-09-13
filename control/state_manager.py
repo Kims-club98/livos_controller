@@ -36,12 +36,12 @@ def init_device_states():
             "serial": serial,
             "mode": "NFT",
             "water_active": False,
-            "end_timestamp": None  # 종료 예정 타임스탬프
+            "end_timestamp": None
         }
     return devices
 
 def format_time(seconds: int) -> str:
-    """초 단위 시간을 'N분 M초' 또는 'M초' 형태의 문자열로 변환"""
+    """초 단위 시간을 문자열로 변환"""
     minutes = max(0, seconds) // 60
     rem_seconds = max(0, seconds) % 60
     if minutes > 0:
@@ -50,7 +50,8 @@ def format_time(seconds: int) -> str:
 
 def set_manual_water_on(device_name: str, device_data: dict, duration_seconds: int = 0):
     serial = device_data["serial"]
-    success = send_water_control(serial, "on")
+    # 💡 bool 타입 True 전달
+    success = send_water_control(serial, True)
     
     if success:
         device_data["mode"] = "MANUAL"
@@ -65,14 +66,10 @@ def set_manual_water_on(device_name: str, device_data: dict, duration_seconds: i
 def set_nft_auto_mode(device_name: str, device_data: dict):
     serial = device_data["serial"]
     
-    # 1단계: 급수 중단 ('off')
-    res1 = send_water_control(serial, "off")
-    time.sleep(0.3)
+    # 💡 bool 타입 False 전달 (급수 중단 및 AUTO 복귀)
+    res = send_water_control(serial, False)
     
-    # 2단계: NFT 자동 모드 전환 ('auto')
-    res2 = send_water_control(serial, "auto")
-    
-    if res1 and res2:
+    if res:
         device_data["mode"] = "NFT"
         device_data["water_active"] = False
         device_data["end_timestamp"] = None
@@ -82,7 +79,7 @@ def set_nft_auto_mode(device_name: str, device_data: dict):
         st.error(f"[{device_name}] NFT 모드 복귀 실패")
 
 def check_and_auto_off_devices():
-    """새로고침 또는 앱 복귀 시 시간이 만료된 장비를 감지하여 자동 꺼짐 처리"""
+    """시간이 만료된 장비를 감지하여 자동 꺼짐 처리"""
     if "devices" not in st.session_state:
         return
 
@@ -90,17 +87,15 @@ def check_and_auto_off_devices():
     for name, dev in st.session_state.devices.items():
         if dev.get("water_active") and dev.get("end_timestamp"):
             if now >= dev["end_timestamp"]:
-                # 시간이 지났으므로 강제 급수 중단 처리
-                send_water_control(dev["serial"], "off")
-                time.sleep(0.3)
-                send_water_control(dev["serial"], "auto")
+                # 💡 bool 타입 False 전달
+                send_water_control(dev["serial"], False)
                 dev["mode"] = "NFT"
                 dev["water_active"] = False
                 dev["end_timestamp"] = None
                 st.toast(f"⏰ [{name}] 설정된 급수 시간이 완료되어 NFT 모드로 복귀했습니다.")
 
 def process_water_queue(selected_devices: list, duration_seconds: int):
-    """대기열(Queue)에 등록된 기기들을 순차적으로 급수 처리"""
+    """대기열 순차 급수 처리"""
     total_count = len(selected_devices)
     status_area = st.empty()
     progress_bar = st.progress(0, text="순차 급수 준비 중...")
@@ -114,7 +109,8 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
             f"(총 설정 시간: {format_time(duration_seconds)})"
         )
         
-        if send_water_control(serial, "on"):
+        # 💡 bool 타입 True 전달
+        if send_water_control(serial, True):
             dev_data["mode"] = "MANUAL"
             dev_data["water_active"] = True
             dev_data["end_timestamp"] = time.time() + duration_seconds
@@ -130,9 +126,8 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
                     text=f"[{dev_name}] 남은 시간: {time_str} (전체 진행률: {int(overall_progress * 100)}%)"
                 )
             
-            send_water_control(serial, "off")
-            time.sleep(0.3)
-            send_water_control(serial, "auto")
+            # 💡 bool 타입 False 전달
+            send_water_control(serial, False)
             
             dev_data["mode"] = "NFT"
             dev_data["water_active"] = False
@@ -145,45 +140,43 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
     progress_bar.empty()
     time.sleep(2)
     st.rerun()
-    
-from control.api_client import get_device_status
 
 def sync_with_livos_server():
-    """앱 새로고침 시 실제 LIVOS 장비의 급수 상태를 조회하여 동기화"""
+    """서버 동기화 시 수동 급수 중인 타임스탬프 세션을 강제로 꺼뜨리지 않도록 보호"""
     if "devices" not in st.session_state:
         return
 
     for dev_name, dev_data in st.session_state.devices.items():
+        # 앱 내에서 직접 켜둔 수동 급수 타이머가 동작 중일 때는 동기화 덮어쓰기 건너뜀
+        if dev_data.get("water_active") and dev_data.get("end_timestamp"):
+            continue
+            
         try:
             server_info = get_device_status(dev_data["serial"])
             if server_info:
-                # LIVOS API의 실제 펌프/급수 상태 반영
                 is_watering = server_info.get("waterActive", False) or server_info.get("pumpStatus", False)
                 dev_data["water_active"] = is_watering
                 if is_watering:
                     dev_data["mode"] = "MANUAL"
         except Exception as e:
             print(f"[{dev_name}] 동기화 실패: {e}")
-            
-        
+
 def stop_all_devices_and_set_nft():
-    """모든 장비의 급수를 즉시 중단(LIVOS 서버 OFF 신호)하고 NFT 자동 모드로 복귀"""
+    """모든 장비 급수 즉시 중단"""
     if "devices" not in st.session_state:
         return
 
     for dev_name, dev_data in st.session_state.devices.items():
-        # 1. LIVOS 서버로 물리적 급수 중단(OFF) 명령 전송
         try:
+            # 💡 bool 타입 False 전달
             send_water_control(dev_data["serial"], False)
         except Exception as e:
             print(f"[{dev_name}] 긴급 중단 API 실패: {e}")
 
-        # 2. 내부 세션 상태 초기화
         dev_data["mode"] = "NFT"
         dev_data["water_active"] = False
         dev_data["end_timestamp"] = None
 
-    # 대기열 초기화
     if "water_queue" in st.session_state:
         st.session_state.water_queue = []
     
