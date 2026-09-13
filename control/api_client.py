@@ -44,10 +44,11 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 💡 FastAPI 백엔드가 요구하는 'control' 객체 필수 구조 및 String 규격
     water_val = "ON" if turn_on else "OFF"
     
+    # 💡 백엔드가 요구하는 규격: 최상위에 serialNumber와 control 객체를 모두 포함
     payload = {
+        "serialNumber": serial_number,
         "control": {
             "waterLevel": water_val
         }
