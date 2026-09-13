@@ -8,7 +8,7 @@ from control.state_manager import (
     format_time
 )
 
-def render_timer_card(dev_name, end_timestamp):
+def render_timer_card(dev_name: str, end_timestamp: float):
     """타임스탬프 기반 남은 시간 표시 및 JS 동기화"""
     timer_code = f"""
     <div id="timer_{dev_name}" style="font-weight: bold; color: #059669; margin: 5px 0;"></div>
@@ -39,7 +39,8 @@ def render_timer_card(dev_name, end_timestamp):
     st.components.v1.html(timer_code, height=45)
 
 def render_device_cards():
-    if "devices" not in st.session_state:
+    if "devices" not in st.session_state or not st.session_state.devices:
+        st.warning("등록된 기기 정보가 없습니다.")
         return
 
     # --- 상단: 순차 급수 제어 패널 ---

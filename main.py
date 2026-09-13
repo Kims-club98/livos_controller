@@ -58,13 +58,13 @@ b_col1, b_col2 = st.columns(2)
 with b_col1:
     if st.button("💧 전체 강제 급수 시작 (수동 모드 전환)", use_container_width=True):
         with st.spinner("전체 장비에 급수 명령을 전송 중입니다..."):
-            for serial, dev in st.session_state.devices.items():
-                # 💡 실제 LIVOS API 네트워크 전송 호출
-                res = send_water_control(serial, turn_on=True)
+            for dev_name, dev in st.session_state.devices.items():
+                # 💡 "ON" 문자열 직접 전달 및 실제 serial 변수 사용
+                res = send_water_control(dev["serial"], "ON")
                 if res:
                     dev["mode"] = "MANUAL"
-                    dev["pump_status"] = True
-                    dev["start_time"] = time.time()
+                    dev["water_active"] = True
+                    dev["end_timestamp"] = None
         st.success("전체 급수 명령 전송 완료")
         st.rerun()
 
