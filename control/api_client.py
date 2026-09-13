@@ -30,30 +30,14 @@ def get_base_headers():
     }
     if token:
         clean_token = token.strip()
-        # 💡 Bearer 토큰 표준 접두사로 교정 (403 방지)
         if not clean_token.startswith("Bearer ") and not clean_token.startswith("Token "):
             clean_token = f"Bearer {clean_token}"
         headers["Authorization"] = clean_token
     return headers
 
-def fetch_csrf_token(serial_number: str, session: requests.Session) -> str:
-    """GET 요청으로 쿠키 및 x-csrf-token 동시 확보"""
-    headers = get_base_headers()
-    # 💡 올바른 status URL 경로 (/nanofarm 중복 제거)
-    status_url = f"https://kr.api.livos.io/nanofarm/v1/status?serialNumber={serial_number}"
-    
-    try:
-        res = session.get(status_url, headers=headers, timeout=5)
-        csrf_token = res.headers.get("x-csrf-token") or res.headers.get("X-CSRF-Token")
-        return csrf_token
-    except Exception as e:
-        print(f"CSRF 토큰 발급 실패: {e}")
-        return None
-
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
-    LIVOS 장비 급수 제어 API
-    (404 경로 오류 및 403 CSRF/인증 토큰 동시 해결)
+    확인된 LIVOS 실제 URL: https://kr.api.livos.io/nanofarm/v1/nanofarm/control
     """
     session = requests.Session()
     headers = get_base_headers()
@@ -62,21 +46,17 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
         return False
 
-    # 💡 1단계: 동일 Session 객체로 CSRF 토큰 및 세션 쿠키 획득
-    csrf_token = fetch_csrf_token(serial_number, session)
-    if csrf_token:
-        headers["x-csrf-token"] = csrf_token
-        headers["X-CSRF-Token"] = csrf_token
-
-    # 💡 2단계: 올바른 control URL 경로 (/nanofarm 중복 제거로 404 해결)
-    url = f"https://kr.api.livos.io/nanofarm/v1/control?serialNumber={serial_number}"
+    # 💡 확인된 정식 엔드포인트 URL
+    url = "https://kr.api.livos.io/nanofarm/v1/nanofarm/control"
     
     cmd_upper = str(mode_command).upper()
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
         cmd_upper = "OFF"
 
+    # 💡 LIVOS 백엔드 실규격 Payload (중첩 control 구조 및 평탄화 구조 동시 대응)
     payload = {
         "serialNumber": serial_number,
+        "waterLevel": cmd_upper,
         "control": {
             "waterLevel": cmd_upper
         }
@@ -86,14 +66,13 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         response = session.post(url, json=payload, headers=headers, timeout=5)
         
         if response.status_code == 200:
-            res_json = response.json() if response.text else {}
-            st.toast(f"[{serial_number}] 제어 완료: {cmd_upper}", icon="✅")
+            st.toast(f"[{serial_number}] 제어 성공: {cmd_upper}", icon="✅")
             return True
         elif response.status_code == 404:
-            st.toast(f"[{serial_number}] 404 Not Found: URL 경로 오류입니다.", icon="❌")
+            st.toast(f"[{serial_number}] 404 Error: URL 및 시리얼 번호({serial_number})를 재확인하세요.", icon="❌")
             return False
         elif response.status_code == 403:
-            st.toast(f"[{serial_number}] 403 Forbidden: 인증 토큰 또는 CSRF 권한 오류입니다.", icon="🚫")
+            st.toast(f"[{serial_number}] 403 Forbidden: 인증 토큰이 만료되었거나 권한이 없습니다.", icon="🚫")
             return False
         else:
             st.toast(f"[{serial_number}] 제어 실패 ({response.status_code}): {response.text}", icon="⚠️")
@@ -111,7 +90,7 @@ def get_device_status(serial_number: str) -> dict:
     if "Authorization" not in headers:
         return None
 
-    status_url = f"https://kr.api.livos.io/nanofarm/v1/status?serialNumber={serial_number}"
+    status_url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
     
     try:
         response = requests.get(status_url, headers=headers, timeout=3)
