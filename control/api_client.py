@@ -36,7 +36,7 @@ def get_headers():
     return headers
 
 def send_water_control(serial_number: str, turn_on: bool) -> bool:
-    """LIVOS 장비에 실시간 급수 ON/OFF 명령 전송"""
+    """LIVOS 장비에 실시간 물리 급수 ON/OFF 명령 전송"""
     headers = get_headers()
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
@@ -44,13 +44,14 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
+    # LIVOS 하드웨어 펌프 제어를 위한 명확한 키 구조 설정
     water_val = "ON" if turn_on else "OFF"
     
-    # 💡 백엔드가 요구하는 규격: 최상위에 serialNumber와 control 객체를 모두 포함
     payload = {
         "serialNumber": serial_number,
         "control": {
-            "waterLevel": water_val
+            "waterLevel": water_val,
+            "waterActive": turn_on  # 펌프 직접 동작 릴레이 키 추가
         }
     }
 
@@ -58,7 +59,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             res_data = response.json() if response.text else {}
-            print(f"[{serial_number}] 제어 성공: {res_data}")
+            # 💡 서버가 반환한 실제 기기 상태 파라미터 출력
+            print(f"[{serial_number}] 제어 응답 확인: {res_data}")
             return True
         else:
             err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
@@ -69,12 +71,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         st.toast(f"[{serial_number}] 통신 예외: {e}", icon="❌")
         return False
 
-def set_water_auto_mode(serial_number: str) -> bool:
-    """LIVOS 장비를 NFT AUTO 모드로 복귀 (급수 중단 및 자동화)"""
-    return send_water_control(serial_number, False)
-
 def get_device_status(serial_number: str) -> dict:
-    """실제 LIVOS 서버에서 장비의 현재 상태 조회"""
+    """실제 LIVOS 서버에서 장비의 현재 상태를 동기화 조회"""
     headers = get_headers()
     if "Authorization" not in headers:
         return None
