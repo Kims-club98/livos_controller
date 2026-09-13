@@ -36,12 +36,13 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # LIVOS API 요구 규격: String 타입 ("HIGH" 또는 "OFF")
-    water_level_val = "HIGH" if turn_on else "OFF"
+    # 💡 LIVOS API 규격 호환: 문자열 "true" / "false" 또는 "ON" / "OFF"
+    # 앞서 String_type 에러가 났으므로 bool(True/False) 대신 문자열로 전달합니다.
+    water_val = "true" if turn_on else "false"
     
     payload = {
         "control": {
-            "waterLevel": water_level_val
+            "waterLevel": water_val
         }
     }
 
@@ -50,7 +51,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         if response.status_code == 200:
             return True
         else:
-            print(f"[{serial_number}] 제어 실패 ({response.status_code}): {response.text}")
+            # 💡 실패 시 서버가 정확히 어떤 값을 원하는지 Streamlit 로그로 출력
+            print(f"[{serial_number}] 급수 제어 실패 ({response.status_code}): {response.text}")
             return False
     except Exception as e:
         print(f"[{serial_number}] API 통신 예외: {e}")
