@@ -164,3 +164,27 @@ def sync_with_livos_server():
                     dev_data["mode"] = "MANUAL"
         except Exception as e:
             print(f"[{dev_name}] 동기화 실패: {e}")
+            
+        
+def stop_all_devices_and_set_nft():
+    """모든 장비의 급수를 즉시 중단(LIVOS 서버 OFF 신호)하고 NFT 자동 모드로 복귀"""
+    if "devices" not in st.session_state:
+        return
+
+    for dev_name, dev_data in st.session_state.devices.items():
+        # 1. LIVOS 서버로 물리적 급수 중단(OFF) 명령 전송
+        try:
+            send_water_control(dev_data["serial"], False)
+        except Exception as e:
+            print(f"[{dev_name}] 긴급 중단 API 실패: {e}")
+
+        # 2. 내부 세션 상태 초기화
+        dev_data["mode"] = "NFT"
+        dev_data["water_active"] = False
+        dev_data["end_timestamp"] = None
+
+    # 대기열 초기화
+    if "water_queue" in st.session_state:
+        st.session_state.water_queue = []
+    
+    st.toast("🚨 모든 장치의 급수가 중단되고 NFT 자동 모드로 전환되었습니다.", icon="🛑")

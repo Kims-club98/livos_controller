@@ -73,10 +73,9 @@ with b_col1:
         st.rerun()
 
 with b_col2:
-    if st.button("🔄 전체 NFT 모드로 복귀 (급수 중단)", use_container_width=True):
-        for dev in st.session_state.devices.values():
-            dev["mode"] = "NFT"
-            dev["pump_status"] = False
+    if st.button("🚨 전체 긴급 중단 (모두 NFT 모드 복귀)", type="primary", use_container_width=True):
+        from control.state_manager import stop_all_devices_and_set_nft
+        stop_all_devices_and_set_nft()
         st.rerun()
 
 st.divider()
