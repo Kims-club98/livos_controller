@@ -1,10 +1,31 @@
 # ux/device.py
 import streamlit as st
+import time
 from control.state_manager import (
     set_manual_water_on, 
     set_nft_auto_mode, 
     process_water_queue
 )
+
+def render_timer_card(serial_no, total_seconds):
+    """브라우저 localStorage를 활용해 새로고침 후에도 타이머 종료 시각을 유지하는 컴포넌트"""
+    timer_script = f"""
+    <script>
+    const endKey = "timer_end_{serial_no}";
+    let endTime = localStorage.getItem(endKey);
+    
+    // 저장된 종료 시간이 없거나 이미 지난 경우 새로 설정
+    if (!endTime || parseInt(endTime) < Date.now()) {{
+        endTime = Date.now() + ({total_seconds} * 1000);
+        localStorage.setItem(endKey, endTime);
+    }}
+    
+    // 남은 시간 계산 (초 단위)
+    const remainingSeconds = Math.max(0, Math.round((parseInt(endTime) - Date.now()) / 1000));
+    console.log("[LIVOS Timer] Device {serial_no} Remaining:", remainingSeconds);
+    </script>
+    """
+    st.components.v1.html(timer_script, height=0)
 
 def render_device_cards():
     if "devices" not in st.session_state:
@@ -54,7 +75,13 @@ def render_device_cards():
                 
                 if mode == "MANUAL" and is_active:
                     st.markdown("🟢 **수동 급수 중 (ON)**")
+                    
+                    # 수동 급수 동작 중일 때 localStorage 기반 타이머 스크립트 실행
+                    render_timer_card(dev_name, st.session_state.get(f"duration_{dev_name}", 300))
+                    
                     if st.button("⏹ 즉시 중단 (NFT 복귀)", key=f"btn_stop_{dev_name}", type="primary", use_container_width=True):
+                        # 중단 시 localStorage 저장값 삭제 스크립트 실행
+                        st.components.v1.html(f"<script>localStorage.removeItem('timer_end_{dev_name}');</script>", height=0)
                         set_nft_auto_mode(dev_name, dev_data)
                 else:
                     st.markdown("🔵 **NFT 자동 모드 (AUTO)**")

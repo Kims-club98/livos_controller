@@ -1,7 +1,7 @@
 # main.py
 import streamlit as st
 
-# 1. st.set_page_config는 import 직후 가장 최상단에 단 1회만 위치해야 합니다.
+# 1. st.set_page_config는 최상단 1회 위치
 st.set_page_config(
     page_title="LIVOS 급수 통합 제어",
     page_icon="🌱",
@@ -14,7 +14,34 @@ manifest_code = """
 """
 st.markdown(manifest_code, unsafe_allow_html=True)
 
-# 3. 내부 모듈 불러오기 (set_page_config 이후에 위치)
+# 3. 갤럭시/안드로이드 화면 꺼짐 방지(Wake Lock) 스크립트 주입
+wake_lock_script = """
+<script>
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('Wake Lock 활성화: 화면 꺼짐이 방지됩니다.');
+    }
+  } catch (err) {
+    console.log(`Wake Lock 오류: ${err.name}, ${err.message}`);
+  }
+}
+
+// 화면 백그라운드 전환 후 복귀 시 자동 재요청
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock !== null && document.visibilityState === 'visible') {
+    await requestWakeLock();
+  }
+});
+
+requestWakeLock();
+</script>
+"""
+st.markdown(wake_lock_script, unsafe_allow_html=True)
+
+# 4. 내부 모듈 불러오기
 from control.state_manager import init_device_states
 from ux.device import render_device_cards
 
@@ -46,3 +73,11 @@ st.divider()
 
 # 20개 장비 카드 그리드 출력
 render_device_cards()
+
+from control.state_manager import init_device_states, check_and_auto_off_devices
+
+if "devices" not in st.session_state:
+    st.session_state.devices = init_device_states()
+
+# 💡 새로고침이나 복귀 시 시간이 넘은 급수 장비를 자동으로 끄는 체크 로직 호출
+check_and_auto_off_devices()
