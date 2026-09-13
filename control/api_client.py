@@ -44,8 +44,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 서버 요구 문자열 타입 규격
-    water_val = "HIGH" if turn_on else "OFF"
+    # 💡 실제 LIVOS API 명령어 규격 적용 ("ON", "OFF", "AUTO")
+    water_val = "ON" if turn_on else "OFF"
     
     payload = {
         "control": {
@@ -64,6 +64,27 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         print(f"[{serial_number}] API 통신 예외: {e}")
         return False
 
+def set_water_auto_mode(serial_number: str) -> bool:
+    """LIVOS 장비를 AUTO 모드로 전환할 때 호출하는 함수"""
+    headers = get_headers()
+    if "Authorization" not in headers:
+        return False
+
+    url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
+    
+    payload = {
+        "control": {
+            "waterLevel": "AUTO"
+        }
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"[{serial_number}] AUTO 모드 설정 예외: {e}")
+        return False
+
 def get_device_status(serial_number: str) -> dict:
     """실제 LIVOS 서버에서 장비의 현재 상태 조회"""
     headers = get_headers()
@@ -76,7 +97,6 @@ def get_device_status(serial_number: str) -> dict:
         response = requests.get(status_url, headers=headers, timeout=3)
         if response.status_code == 200:
             return response.json()
-        print(f"[{serial_number}] 상태 조회 실패 ({response.status_code}): {response.text}")
         return None
     except Exception as e:
         print(f"[{serial_number}] 상태 조회 예외: {e}")
