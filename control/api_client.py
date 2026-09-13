@@ -9,7 +9,6 @@ try:
 except ImportError:
     pass
 
-# 💡 절대 경로 Base URL 명시 (Streamlit 호스트로의 잘못된 요청 차단)
 BASE_URL = "https://kr.api.livos.io"
 
 def get_token():
@@ -33,19 +32,22 @@ def get_base_headers():
     }
     if token:
         clean_token = token.strip()
+        # Bearer/Token 단어 제거 후 Pure Raw Token 추출
         raw_token = clean_token.replace("Bearer ", "").replace("Token ", "").strip()
         
-        # 💡 Knox Gateway 표준 인증 헤더 세팅
-        headers["Authorization"] = f"Bearer {raw_token}"
-        headers["x-knox-token"] = raw_token
-        headers["knox-token"] = raw_token
-        headers["X-Access-Token"] = raw_token
+        # 💡 401 오류 해결: 모든 백엔드 인증 헤더 호환 규격 일괄 설정
+        headers["Authorization"] = raw_token                     # Raw 토큰 직접 전달
+        headers["X-Authorization"] = f"Bearer {raw_token}"      # Standard Bearer
+        headers["x-knox-token"] = raw_token                      # Knox 소문자
+        headers["X-Knox-Token"] = raw_token                      # Knox 대소문자
+        headers["x-auth-token"] = raw_token                      # 일반 Auth 토큰
+        headers["x-user-token"] = raw_token                      # 유저 토큰
         
     return headers
 
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
-    LIVOS Knox 백엔드 절대 경로 제어 요청
+    LIVOS Knox 백엔드 급수 제어 API (인증 헤더 완전 호환)
     """
     session = requests.Session()
     headers = get_base_headers()
@@ -54,7 +56,6 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
         return False
 
-    # 💡 Streamlit 앱 도메인이 아닌 kr.api.livos.io 절대 경로 지정
     url = f"{BASE_URL}/nanofarm/v1/nanofarm/control"
     
     cmd_upper = str(mode_command).upper()
