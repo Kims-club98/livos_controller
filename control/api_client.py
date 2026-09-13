@@ -30,14 +30,13 @@ def get_headers():
     }
     if token:
         clean_token = token.strip()
-        # Knox Token 인증 규격: Token 접두사 필수 적용
         if not clean_token.startswith("Token ") and not clean_token.startswith("Bearer "):
             clean_token = f"Token {clean_token}"
         headers["Authorization"] = clean_token
     return headers
 
 def send_water_control(serial_number: str, turn_on: bool) -> bool:
-    """LIVOS 장비에 급수 ON/OFF 명령 전송"""
+    """LIVOS 장비에 실시간 물리 급수 ON/OFF 명령 전송"""
     headers = get_headers()
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
@@ -45,23 +44,26 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    water_val = "ON" if turn_on else "OFF"
+    water_str = "ON" if turn_on else "OFF"
     
-    # LIVOS API 호환 Payload (Depth 구조 단순화 및 fallback 구조)
+    # Knox/LIVOS 물리 제어 이중 보장 Payload (waterLevel + waterActive 동시 전송)
     payload = {
         "serialNumber": serial_number,
         "control": {
-            "waterLevel": water_val
+            "waterLevel": water_str,
+            "waterActive": turn_on,
+            "pumpStatus": turn_on
         }
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
+            res_data = response.json() if response.text else {}
+            print(f"[{serial_number}] 제어 성공 응답: {res_data}")
             return True
         else:
-            # 실패 원인 화면에 직접 출력 (디버깅용)
-            err_msg = f"[{serial_number}] API 에러 ({response.status_code}): {response.text}"
+            err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
             print(err_msg)
             st.toast(err_msg, icon="⚠️")
             return False
@@ -70,30 +72,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         return False
 
 def set_water_auto_mode(serial_number: str) -> bool:
-    """LIVOS 장비를 AUTO 모드로 전환 (급수 중단 후 자동 제어)"""
-    headers = get_headers()
-    if "Authorization" not in headers:
-        return False
-
-    url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
-    
-    payload = {
-        "serialNumber": serial_number,
-        "control": {
-            "waterLevel": "AUTO"
-        }
-    }
-
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-        if response.status_code == 200:
-            return True
-        else:
-            # AUTO 명령어 미지원 시 OFF 명령으로 fallback 처리
-            return send_water_control(serial_number, False)
-    except Exception as e:
-        print(f"[{serial_number}] AUTO 모드 설정 예외: {e}")
-        return False
+    """LIVOS 장비를 NFT AUTO 모드로 복귀"""
+    return send_water_control(serial_number, False)
 
 def get_device_status(serial_number: str) -> dict:
     """실제 LIVOS 서버에서 장비의 현재 상태 조회"""
