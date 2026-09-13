@@ -30,7 +30,8 @@ def get_headers():
     }
     if token:
         clean_token = token.strip()
-        if not clean_token.startswith("Bearer "):
+        # "Bearer " 접두사가 이미 포함되어 있지 않은 경우에만 추가
+        if not clean_token.startswith("Bearer ") and not clean_token.startswith("Token "):
             clean_token = f"Bearer {clean_token}"
         headers["Authorization"] = clean_token
     return headers
