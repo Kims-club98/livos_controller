@@ -30,7 +30,9 @@ def get_headers():
     }
     if token:
         clean_token = token.strip()
-        # Knox 인증 규격: 접두사 없이 토큰만 전송하거나 Secrets에 지정된 접두사 그대로 유지
+        # Knox Token 인증 규격: Token 접두사 필수 적용
+        if not clean_token.startswith("Token ") and not clean_token.startswith("Bearer "):
+            clean_token = f"Token {clean_token}"
         headers["Authorization"] = clean_token
     return headers
 
