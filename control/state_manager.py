@@ -1,7 +1,7 @@
 # control/state_manager.py
 import time
 import streamlit as st
-from control.api_client import send_water_control
+from control.api_client import send_water_control, get_device_status
 
 SERIAL_MAP = {
     "정식기 1호": "gr04dec103h1dd",
@@ -154,10 +154,13 @@ def sync_with_livos_server():
         return
 
     for dev_name, dev_data in st.session_state.devices.items():
-        server_info = get_device_status(dev_data["serial"])
-        if server_info:
-            # LIVOS 서버의 실제 펌프/급수 상태값 반영 (API 응답 필드명에 맞게 조정)
-            is_watering = server_info.get("waterActive", False) or server_info.get("pumpStatus", False)
-            dev_data["water_active"] = is_watering
-            if is_watering:
-                dev_data["mode"] = "MANUAL"
+        try:
+            server_info = get_device_status(dev_data["serial"])
+            if server_info:
+                # LIVOS API의 실제 펌프/급수 상태 반영
+                is_watering = server_info.get("waterActive", False) or server_info.get("pumpStatus", False)
+                dev_data["water_active"] = is_watering
+                if is_watering:
+                    dev_data["mode"] = "MANUAL"
+        except Exception as e:
+            print(f"[{dev_name}] 동기화 실패: {e}")
