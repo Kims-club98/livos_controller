@@ -36,7 +36,7 @@ def get_headers():
     return headers
 
 def send_water_control(serial_number: str, turn_on: bool) -> bool:
-    """LIVOS 장비에 실시간 물리 급수 ON/OFF 명령 전송 (Flat JSON 구조 적용)"""
+    """LIVOS 장비에 실시간 급수 ON/OFF 명령 전송"""
     headers = get_headers()
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
@@ -44,19 +44,20 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 💡 LIVOS Knox 하드웨어 직접 제어를 위한 Flat Payload 구조
+    # 💡 FastAPI 백엔드가 요구하는 'control' 객체 필수 구조 및 String 규격
+    water_val = "ON" if turn_on else "OFF"
+    
     payload = {
-        "serialNumber": serial_number,
-        "waterLevel": "ON" if turn_on else "OFF",
-        "waterActive": turn_on,
-        "mode": "MANUAL" if turn_on else "AUTO"
+        "control": {
+            "waterLevel": water_val
+        }
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             res_data = response.json() if response.text else {}
-            print(f"[{serial_number}] HW 제어 성공: {res_data}")
+            print(f"[{serial_number}] 제어 성공: {res_data}")
             return True
         else:
             err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
@@ -68,7 +69,7 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         return False
 
 def set_water_auto_mode(serial_number: str) -> bool:
-    """LIVOS 장비를 NFT AUTO 모드로 복귀"""
+    """LIVOS 장비를 NFT AUTO 모드로 복귀 (급수 중단 및 자동화)"""
     return send_water_control(serial_number, False)
 
 def get_device_status(serial_number: str) -> dict:
