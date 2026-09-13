@@ -35,8 +35,10 @@ def get_headers():
         headers["Authorization"] = clean_token
     return headers
 
-def send_water_control(serial_number: str, turn_on: bool) -> bool:
-    """LIVOS 장비에 실시간 급수 ON/OFF 명령 전송 (문자열 타입 완벽 준수)"""
+def send_water_control(serial_number: str, mode_command: str) -> bool:
+    """
+    LIVOS 장비 급수 제어 (mode_command: "ON", "OFF", "AUTO")
+    """
     headers = get_headers()
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
@@ -44,15 +46,15 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 💡 백엔드가 요구하는 String 타입 규칙 변환
-    water_val = "ON" if turn_on else "OFF"
-    active_val = "true" if turn_on else "false"
-    
+    # 💡 waterLevel 하나에만 ON / OFF / AUTO 전달 (추가 불필요 키 완전 제거)
+    cmd_upper = str(mode_command).upper()
+    if cmd_upper not in ["ON", "OFF", "AUTO"]:
+        cmd_upper = "OFF"
+
     payload = {
         "serialNumber": serial_number,
         "control": {
-            "waterLevel": water_val,
-            "waterActive": active_val
+            "waterLevel": cmd_upper
         }
     }
 
@@ -60,7 +62,7 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             res_data = response.json() if response.text else {}
-            print(f"[{serial_number}] HW 제어 성공: {res_data}")
+            print(f"[{serial_number}] [{cmd_upper}] 명령 전송 성공: {res_data}")
             return True
         else:
             err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
@@ -71,8 +73,12 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         st.toast(f"[{serial_number}] 통신 예외: {e}", icon="❌")
         return False
 
+def set_water_auto_mode(serial_number: str) -> bool:
+    """LIVOS 장비를 NFT AUTO 모드로 복귀"""
+    return send_water_control(serial_number, "AUTO")
+
 def get_device_status(serial_number: str) -> dict:
-    """실제 LIVOS 서버에서 장비의 현재 상태를 동기화 조회"""
+    """실제 LIVOS 서버에서 장비 상태 조회"""
     headers = get_headers()
     if "Authorization" not in headers:
         return None
