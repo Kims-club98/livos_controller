@@ -2,6 +2,16 @@
 import streamlit as st
 import time
 
+st.set_page_config(page_title="LIVOS Controller", page_icon="🌱", layout="wide")
+
+# PWA 메타 태그 및 래핑 헤더 주입
+st.markdown("""
+    <link rel="manifest" href="https://raw.githubusercontent.com/pwabuilder/pwa-starter/main/src/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="LIVOS Controller">
+""", unsafe_allow_html=True)
+
 # 1. Page Config (최상단 1회)
 st.set_page_config(
     page_title="LIVOS 급수 통합 제어",
