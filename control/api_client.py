@@ -22,8 +22,12 @@ try:
 except Exception:
     USER_TOKEN = os.getenv("LIVOS_TOKEN") or os.getenv("LIVOS_USER_TOKEN")
 
-# 토큰 정리 및 Headers 구성
-HEADERS = {"Content-Type": "application/json"}
+# Headers 설정 (Bearer 토큰 포함)
+HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+
 if USER_TOKEN:
     clean_token = USER_TOKEN.strip().replace("token ", "").replace("Bearer ", "")
     HEADERS["Authorization"] = f"Bearer {clean_token}"
@@ -36,9 +40,8 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 💡 LIVOS API 규격 호환: 문자열 "true" / "false" 또는 "ON" / "OFF"
-    # 앞서 String_type 에러가 났으므로 bool(True/False) 대신 문자열로 전달합니다.
-    water_val = "true" if turn_on else "false"
+    # 💡 String Type 요구사항에 맞춘 정확한 수위 문자열 설정 ("HIGH" / "OFF")
+    water_val = "HIGH" if turn_on else "OFF"
     
     payload = {
         "control": {
@@ -51,7 +54,6 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         if response.status_code == 200:
             return True
         else:
-            # 💡 실패 시 서버가 정확히 어떤 값을 원하는지 Streamlit 로그로 출력
             print(f"[{serial_number}] 급수 제어 실패 ({response.status_code}): {response.text}")
             return False
     except Exception as e:
@@ -69,7 +71,8 @@ def get_device_status(serial_number: str) -> dict:
         response = requests.get(status_url, headers=HEADERS, timeout=3)
         if response.status_code == 200:
             return response.json()
+        print(f"[{serial_number}] 상태 조회 실패 ({response.status_code}): {response.text}")
         return None
     except Exception as e:
-        print(f"[{serial_number}] 상태 조회 실패: {e}")
+        print(f"[{serial_number}] 상태 조회 예외: {e}")
         return None
