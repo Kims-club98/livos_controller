@@ -31,7 +31,7 @@ def get_raw_token():
 
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
-    LIVOS Knox 급수 제어 (401 Unauthorized 완벽 해결)
+    LIVOS Knox 급수 제어 (디버그 로그 트래킹 적용)
     """
     raw_token = get_raw_token()
     if not raw_token:
@@ -40,18 +40,18 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
 
     session = requests.Session()
 
-    # 💡 1단계: Knox 백엔드 규격에 맞춘 Token 인증 헤더 설정
+    # 1단계: Token 인증 헤더 설정
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "Authorization": f"Token {raw_token}"  # LIVOS Django Knox 백엔드 정식 규격
+        "Authorization": f"Token {raw_token}"
     }
 
     cmd_upper = str(mode_command).upper()
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
         cmd_upper = "OFF"
 
-    # 💡 2단계: GET 요청으로 Nginx/Knox CSRF 및 쿠키 세션 동기화
+    # 2단계: GET 요청으로 Nginx/Knox CSRF 및 쿠키 세션 동기화
     status_url = f"{BASE_URL}/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
     try:
         res_get = session.get(status_url, headers=headers, timeout=4)
@@ -61,7 +61,7 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
     except Exception as e:
         print(f"세션 동기화 경고: {e}")
 
-    # 💡 3단계: 확인된 제어 엔드포인트 전송
+    # 3단계: 제어 엔드포인트 전송 및 디버그 로깅
     control_url = f"{BASE_URL}/nanofarm/v1/nanofarm/control"
     
     payload = {
@@ -73,6 +73,15 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
 
     try:
         response = session.post(control_url, json=payload, headers=headers, timeout=5)
+        
+        # 🔍 디버깅 트래킹 로그 (터미널 콘솔 출력)
+        print("===== [API REQUEST DEBUG] =====")
+        print(f"URL: {control_url}")
+        print(f"Headers: {headers}")
+        print(f"Payload: {payload}")
+        print(f"Response Status: {response.status_code}")
+        print(f"Response Body: {response.text}")
+        print("===============================")
         
         if response.status_code == 200:
             st.toast(f"[{serial_number}] 제어 성공: {cmd_upper}", icon="✅")
