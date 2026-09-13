@@ -8,6 +8,16 @@ st.set_page_config(
     layout="wide"
 )
 
+from control.state_manager import init_device_states, check_and_auto_off_devices, sync_with_livos_server
+
+if "devices" not in st.session_state:
+    st.session_state.devices = init_device_states()
+    # 앱 처음 열릴 때 LIVOS 서버와 상태 맞춤
+    sync_with_livos_server()
+
+# 새로고침 시 자동 끄기 체크
+check_and_auto_off_devices()
+
 # 2. PWABuilder 호환용 웹 매니페스트 메타 정보 주입
 manifest_code = """
 <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIkxJVk9TIEZhcm0gQ29udHJvbGxlciIsCiAgInNob3J0X25hbWUiIjogIkxJVk9TIiwKICAic3RhcnRfdXJsIjogIi8iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOGZhZmMiLAogICJ0aGVtZV9jb2xvciI6ICIjMjJjNTVlIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0tpbXMtY2x1Yjk4L2xpdm9zX2NvbnRyb2xsZXIvbWFpbi9zdGF0aWMvaWNvbi01MTIucG5nIiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6ICJhbnkgbWFza2FibGUiCiAgICB9CiAgXQp9">

@@ -71,3 +71,19 @@ def send_water_control(serial_number: str, action: str) -> bool:
     import streamlit as st
     st.error(f"[{serial_number}] 인증 실패 (401): 토큰 값이 만료되었거나 올바르지 않습니다.")
     return False
+
+def get_device_status(serial_number: str) -> dict:
+    """실제 LIVOS 서버에서 장비의 현재 상태(급수 여부 등)를 조회합니다."""
+    if not USER_TOKEN:
+        return None
+
+    status_url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
+    
+    try:
+        response = requests.get(status_url, headers=HEADERS, timeout=3)
+        if response.status_code == 200:
+            return response.json() # 서버에서 반환한 상태 객체
+        return None
+    except Exception as e:
+        print(f"[{serial_number}] 상태 조회 실패: {e}")
+        return None

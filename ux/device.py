@@ -8,24 +8,40 @@ from control.state_manager import (
 )
 
 def render_timer_card(serial_no, total_seconds):
-    """브라우저 localStorage를 활용해 새로고침 후에도 타이머 종료 시각을 유지하는 컴포넌트"""
-    timer_script = f"""
+    """SessionStorage를 통해 새로고침 시에도 타이머를 유지 및 동기화하는 컴포넌트"""
+    timer_code = f"""
+    <div id="timer_{serial_no}" style="font-weight: bold; color: #059669; margin: 5px 0;"></div>
     <script>
-    const endKey = "timer_end_{serial_no}";
-    let endTime = localStorage.getItem(endKey);
-    
-    // 저장된 종료 시간이 없거나 이미 지난 경우 새로 설정
-    if (!endTime || parseInt(endTime) < Date.now()) {{
-        endTime = Date.now() + ({total_seconds} * 1000);
-        localStorage.setItem(endKey, endTime);
-    }}
-    
-    // 남은 시간 계산 (초 단위)
-    const remainingSeconds = Math.max(0, Math.round((parseInt(endTime) - Date.now()) / 1000));
-    console.log("[LIVOS Timer] Device {serial_no} Remaining:", remainingSeconds);
+    (function() {{
+        const key = "timer_end_{serial_no}";
+        let endTime = sessionStorage.getItem(key);
+
+        if (!endTime && {total_seconds} > 0) {{
+            endTime = Date.now() + ({total_seconds} * 1000);
+            sessionStorage.setItem(key, endTime);
+        }}
+
+        function updateTimer() {{
+            const now = Date.now();
+            const remain = Math.max(0, Math.round((parseInt(endTime) - now) / 1000));
+            const el = document.getElementById("timer_{serial_no}");
+            
+            if (remain > 0) {{
+                const min = Math.floor(remain / 60);
+                const sec = remain % 60;
+                if (el) el.innerText = `⏱️ 남은 급수 시간: ${min}분 ${sec}초`;
+            }} else {{
+                if (el) el.innerText = "✅ 급수 완료 처리 중...";
+                sessionStorage.removeItem(key);
+            }}
+        }}
+
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    }})();
     </script>
     """
-    st.components.v1.html(timer_script, height=0)
+    st.components.v1.html(timer_code, height=45)
 
 def render_device_cards():
     if "devices" not in st.session_state:

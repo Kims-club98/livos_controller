@@ -145,3 +145,19 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
     progress_bar.empty()
     time.sleep(2)
     st.rerun()
+    
+from control.api_client import get_device_status
+
+def sync_with_livos_server():
+    """앱 새로고침 시 실제 LIVOS 장비의 급수 상태를 조회하여 동기화"""
+    if "devices" not in st.session_state:
+        return
+
+    for dev_name, dev_data in st.session_state.devices.items():
+        server_info = get_device_status(dev_data["serial"])
+        if server_info:
+            # LIVOS 서버의 실제 펌프/급수 상태값 반영 (API 응답 필드명에 맞게 조정)
+            is_watering = server_info.get("waterActive", False) or server_info.get("pumpStatus", False)
+            dev_data["water_active"] = is_watering
+            if is_watering:
+                dev_data["mode"] = "MANUAL"
