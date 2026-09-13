@@ -9,6 +9,9 @@ try:
 except ImportError:
     pass
 
+# 💡 절대 경로 Base URL 명시 (Streamlit 호스트로의 잘못된 요청 차단)
+BASE_URL = "https://kr.api.livos.io"
+
 def get_token():
     token = None
     try:
@@ -30,22 +33,19 @@ def get_base_headers():
     }
     if token:
         clean_token = token.strip()
-        
-        # 💡 Knox Gateway 호환: Raw 토큰 및 커스텀 Knox 헤더 동시 주입 (401 방지)
         raw_token = clean_token.replace("Bearer ", "").replace("Token ", "").strip()
-        bearer_token = f"Bearer {raw_token}"
         
-        # 표준 및 Knox 전용 헤더 설정
-        headers["Authorization"] = bearer_token
+        # 💡 Knox Gateway 표준 인증 헤더 세팅
+        headers["Authorization"] = f"Bearer {raw_token}"
         headers["x-knox-token"] = raw_token
         headers["knox-token"] = raw_token
         headers["X-Access-Token"] = raw_token
-
+        
     return headers
 
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
-    LIVOS Knox 백엔드 급수 제어 API
+    LIVOS Knox 백엔드 절대 경로 제어 요청
     """
     session = requests.Session()
     headers = get_base_headers()
@@ -54,7 +54,8 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
         return False
 
-    url = "https://kr.api.livos.io/nanofarm/v1/nanofarm/control"
+    # 💡 Streamlit 앱 도메인이 아닌 kr.api.livos.io 절대 경로 지정
+    url = f"{BASE_URL}/nanofarm/v1/nanofarm/control"
     
     cmd_upper = str(mode_command).upper()
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
@@ -75,10 +76,10 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
             st.toast(f"[{serial_number}] 제어 성공: {cmd_upper}", icon="✅")
             return True
         elif response.status_code == 401:
-            st.toast(f"[{serial_number}] 401 Unauthorized: Knox 토큰 인증 헤더 형태를 확인하세요.", icon="🚫")
+            st.toast(f"[{serial_number}] 401 Unauthorized: Knox 인증 토큰을 확인하세요.", icon="🚫")
             return False
         elif response.status_code == 404:
-            st.toast(f"[{serial_number}] 404 Error: URL 및 시리얼 번호를 확인하세요.", icon="❌")
+            st.toast(f"[{serial_number}] 404 Error: API 엔드포인트를 찾을 수 없습니다.", icon="❌")
             return False
         else:
             st.toast(f"[{serial_number}] 제어 실패 ({response.status_code}): {response.text}", icon="⚠️")
@@ -96,7 +97,7 @@ def get_device_status(serial_number: str) -> dict:
     if "Authorization" not in headers:
         return None
 
-    status_url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
+    status_url = f"{BASE_URL}/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
     
     try:
         response = requests.get(status_url, headers=headers, timeout=3)
