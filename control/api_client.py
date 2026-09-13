@@ -36,7 +36,7 @@ def get_headers():
     return headers
 
 def send_water_control(serial_number: str, turn_on: bool) -> bool:
-    """LIVOS 장비에 실시간 물리 급수 ON/OFF 명령 전송"""
+    """LIVOS 장비에 실시간 급수 ON/OFF 명령 전송 (문자열 타입 완벽 준수)"""
     headers = get_headers()
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
@@ -44,14 +44,15 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
 
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # LIVOS 하드웨어 펌프 제어를 위한 명확한 키 구조 설정
+    # 💡 백엔드가 요구하는 String 타입 규칙 변환
     water_val = "ON" if turn_on else "OFF"
+    active_val = "true" if turn_on else "false"
     
     payload = {
         "serialNumber": serial_number,
         "control": {
             "waterLevel": water_val,
-            "waterActive": turn_on  # 펌프 직접 동작 릴레이 키 추가
+            "waterActive": active_val
         }
     }
 
@@ -59,8 +60,7 @@ def send_water_control(serial_number: str, turn_on: bool) -> bool:
         response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             res_data = response.json() if response.text else {}
-            # 💡 서버가 반환한 실제 기기 상태 파라미터 출력
-            print(f"[{serial_number}] 제어 응답 확인: {res_data}")
+            print(f"[{serial_number}] HW 제어 성공: {res_data}")
             return True
         else:
             err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
