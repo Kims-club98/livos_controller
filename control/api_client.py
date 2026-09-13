@@ -47,7 +47,7 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
         cmd_upper = "OFF"
 
-    control_url = f"{BASE_URL}/nanofarm/v1/nanofarm/control"
+    control_url = f"{BASE_URL}/nanofarm/v1/control"
     
     payload = {
         "serialNumber": serial_number,
