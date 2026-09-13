@@ -1,38 +1,33 @@
 # ux/device.py
-import streamlit as st
 import time
+import streamlit as st
 from control.state_manager import (
     set_manual_water_on, 
     set_nft_auto_mode, 
-    process_water_queue
+    process_water_queue,
+    format_time
 )
 
-def render_timer_card(serial_no, total_seconds):
-    """SessionStorage를 통해 새로고침 시에도 타이머를 유지 및 동기화하는 컴포넌트"""
+def render_timer_card(dev_name, end_timestamp):
+    """타임스탬프 기반 남은 시간 표시 및 JS 동기화"""
     timer_code = f"""
-    <div id="timer_{serial_no}" style="font-weight: bold; color: #059669; margin: 5px 0;"></div>
+    <div id="timer_{dev_name}" style="font-weight: bold; color: #059669; margin: 5px 0;"></div>
     <script>
     (function() {{
-        const key = "timer_end_{serial_no}";
-        let endTime = sessionStorage.getItem(key);
-
-        if (!endTime && {total_seconds} > 0) {{
-            endTime = Date.now() + ({total_seconds} * 1000);
-            sessionStorage.setItem(key, endTime);
-        }}
+        const key = "timer_end_{dev_name}";
+        let endTime = {end_timestamp if end_timestamp else 0} * 1000;
 
         function updateTimer() {{
             const now = Date.now();
-            const remain = Math.max(0, Math.round((parseInt(endTime) - now) / 1000));
-            const el = document.getElementById("timer_{serial_no}");
+            const remain = Math.max(0, Math.round((endTime - now) / 1000));
+            const el = document.getElementById("timer_{dev_name}");
             
             if (remain > 0) {{
                 const min = Math.floor(remain / 60);
                 const sec = remain % 60;
-                if (el) el.innerText = `⏱️ 남은 급수 시간: ${min}분 ${sec}초`;
+                if (el) el.innerText = "⏱️ 남은 시간: " + min + "분 " + sec + "초";
             }} else {{
-                if (el) el.innerText = "✅ 급수 완료 처리 중...";
-                sessionStorage.removeItem(key);
+                if (el) el.innerText = "✅ 시간 완료 처리 중...";
             }}
         }}
 
@@ -88,18 +83,17 @@ def render_device_cards():
                 
                 mode = dev_data.get("mode", "NFT")
                 is_active = dev_data.get("water_active", False)
+                end_timestamp = dev_data.get("end_timestamp")
                 
                 if mode == "MANUAL" and is_active:
                     st.markdown("🟢 **수동 급수 중 (ON)**")
                     
-                    # 수동 급수 동작 중일 때 localStorage 기반 타이머 스크립트 실행
-                    render_timer_card(dev_name, st.session_state.get(f"duration_{dev_name}", 300))
+                    if end_timestamp:
+                        render_timer_card(dev_name, end_timestamp)
                     
                     if st.button("⏹ 즉시 중단 (NFT 복귀)", key=f"btn_stop_{dev_name}", type="primary", use_container_width=True):
-                        # 중단 시 localStorage 저장값 삭제 스크립트 실행
-                        st.components.v1.html(f"<script>localStorage.removeItem('timer_end_{dev_name}');</script>", height=0)
                         set_nft_auto_mode(dev_name, dev_data)
                 else:
                     st.markdown("🔵 **NFT 자동 모드 (AUTO)**")
-                    if st.button("💧 개별 수동 급수", key=f"btn_on_{dev_name}", type="secondary", use_container_width=True):
-                        set_manual_water_on(dev_name, dev_data)
+                    if st.button("💧 개별 수동 급수 (5분)", key=f"btn_on_{dev_name}", type="secondary", use_container_width=True):
+                        set_manual_water_on(dev_name, dev_data, duration_seconds=300)
