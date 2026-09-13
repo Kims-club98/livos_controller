@@ -30,14 +30,22 @@ def get_base_headers():
     }
     if token:
         clean_token = token.strip()
-        if not clean_token.startswith("Bearer ") and not clean_token.startswith("Token "):
-            clean_token = f"Bearer {clean_token}"
-        headers["Authorization"] = clean_token
+        
+        # 💡 Knox Gateway 호환: Raw 토큰 및 커스텀 Knox 헤더 동시 주입 (401 방지)
+        raw_token = clean_token.replace("Bearer ", "").replace("Token ", "").strip()
+        bearer_token = f"Bearer {raw_token}"
+        
+        # 표준 및 Knox 전용 헤더 설정
+        headers["Authorization"] = bearer_token
+        headers["x-knox-token"] = raw_token
+        headers["knox-token"] = raw_token
+        headers["X-Access-Token"] = raw_token
+
     return headers
 
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
-    확인된 LIVOS 실제 URL: https://kr.api.livos.io/nanofarm/v1/nanofarm/control
+    LIVOS Knox 백엔드 급수 제어 API
     """
     session = requests.Session()
     headers = get_base_headers()
@@ -46,14 +54,12 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
         return False
 
-    # 💡 확인된 정식 엔드포인트 URL
     url = "https://kr.api.livos.io/nanofarm/v1/nanofarm/control"
     
     cmd_upper = str(mode_command).upper()
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
         cmd_upper = "OFF"
 
-    # 💡 LIVOS 백엔드 실규격 Payload (중첩 control 구조 및 평탄화 구조 동시 대응)
     payload = {
         "serialNumber": serial_number,
         "waterLevel": cmd_upper,
@@ -68,11 +74,11 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         if response.status_code == 200:
             st.toast(f"[{serial_number}] 제어 성공: {cmd_upper}", icon="✅")
             return True
-        elif response.status_code == 404:
-            st.toast(f"[{serial_number}] 404 Error: URL 및 시리얼 번호({serial_number})를 재확인하세요.", icon="❌")
+        elif response.status_code == 401:
+            st.toast(f"[{serial_number}] 401 Unauthorized: Knox 토큰 인증 헤더 형태를 확인하세요.", icon="🚫")
             return False
-        elif response.status_code == 403:
-            st.toast(f"[{serial_number}] 403 Forbidden: 인증 토큰이 만료되었거나 권한이 없습니다.", icon="🚫")
+        elif response.status_code == 404:
+            st.toast(f"[{serial_number}] 404 Error: URL 및 시리얼 번호를 확인하세요.", icon="❌")
             return False
         else:
             st.toast(f"[{serial_number}] 제어 실패 ({response.status_code}): {response.text}", icon="⚠️")
