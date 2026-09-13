@@ -22,7 +22,7 @@ def get_token():
         token = os.getenv("LIVOS_TOKEN") or os.getenv("LIVOS_USER_TOKEN")
     return token
 
-def get_headers():
+def get_base_headers():
     token = get_token()
     headers = {
         "Content-Type": "application/json",
@@ -30,23 +30,45 @@ def get_headers():
     }
     if token:
         clean_token = token.strip()
+        # 토큰 접두사 처리 (Token 또는 Bearer)
         if not clean_token.startswith("Token ") and not clean_token.startswith("Bearer "):
             clean_token = f"Token {clean_token}"
         headers["Authorization"] = clean_token
     return headers
 
+def fetch_csrf_token(serial_number: str, session: requests.Session) -> str:
+    """GET 요청을 먼저 보내 백엔드 Nginx로부터 x-csrf-token을 추출"""
+    headers = get_base_headers()
+    status_url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/status?serialNumber={serial_number}"
+    
+    try:
+        res = session.get(status_url, headers=headers, timeout=5)
+        csrf_token = res.headers.get("x-csrf-token") or res.headers.get("X-CSRF-Token")
+        return csrf_token
+    except Exception as e:
+        print(f"CSRF 토큰 발급 실패: {e}")
+        return None
+
 def send_water_control(serial_number: str, mode_command: str) -> bool:
     """
     LIVOS 장비 급수 제어 (mode_command: "ON", "OFF", "AUTO")
+    CSRF 토큰 동적 주입을 통한 403 Forbidden 해결
     """
-    headers = get_headers()
+    session = requests.Session()
+    headers = get_base_headers()
+    
     if "Authorization" not in headers:
         st.error(f"[{serial_number}] LIVOS_TOKEN 인증 토큰이 설정되지 않았습니다.")
         return False
 
+    # 💡 403 차단 회피: GET 요청을 보내 x-csrf-token 획득
+    csrf_token = fetch_csrf_token(serial_number, session)
+    if csrf_token:
+        headers["x-csrf-token"] = csrf_token
+        headers["X-CSRF-Token"] = csrf_token
+
     url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
     
-    # 💡 waterLevel 하나에만 ON / OFF / AUTO 전달 (추가 불필요 키 완전 제거)
     cmd_upper = str(mode_command).upper()
     if cmd_upper not in ["ON", "OFF", "AUTO"]:
         cmd_upper = "OFF"
@@ -59,11 +81,17 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        response = session.post(url, json=payload, headers=headers, timeout=5)
+        
         if response.status_code == 200:
             res_data = response.json() if response.text else {}
-            print(f"[{serial_number}] [{cmd_upper}] 명령 전송 성공: {res_data}")
+            st.toast(f"[{serial_number}] 제어 성공: {cmd_upper}", icon="✅")
             return True
+        elif response.status_code == 403:
+            err_msg = f"[{serial_number}] 403 Forbidden (인증/CSRF 오류). 토큰 권한을 확인하세요."
+            print(err_msg)
+            st.toast(err_msg, icon="🚫")
+            return False
         else:
             err_msg = f"[{serial_number}] API 제어 실패 ({response.status_code}): {response.text}"
             print(err_msg)
@@ -74,12 +102,10 @@ def send_water_control(serial_number: str, mode_command: str) -> bool:
         return False
 
 def set_water_auto_mode(serial_number: str) -> bool:
-    """LIVOS 장비를 NFT AUTO 모드로 복귀"""
     return send_water_control(serial_number, "AUTO")
 
 def get_device_status(serial_number: str) -> dict:
-    """실제 LIVOS 서버에서 장비 상태 조회"""
-    headers = get_headers()
+    headers = get_base_headers()
     if "Authorization" not in headers:
         return None
 
