@@ -50,8 +50,8 @@ def format_time(seconds: int) -> str:
 
 def set_manual_water_on(device_name: str, device_data: dict, duration_seconds: int = 0):
     serial = device_data["serial"]
-    # 💡 bool 타입 True 전달
-    success = send_water_control(serial, True)
+    # 💡 "ON" 문자열 직접 전달
+    success = send_water_control(serial, "ON")
     
     if success:
         device_data["mode"] = "MANUAL"
@@ -66,10 +66,14 @@ def set_manual_water_on(device_name: str, device_data: dict, duration_seconds: i
 def set_nft_auto_mode(device_name: str, device_data: dict):
     serial = device_data["serial"]
     
-    # 💡 bool 타입 False 전달 (급수 중단 및 AUTO 복귀)
-    res = send_water_control(serial, False)
+    # 💡 1단계: 급수 중단 ("OFF")
+    res1 = send_water_control(serial, "OFF")
+    time.sleep(0.3)
     
-    if res:
+    # 💡 2단계: NFT 자동 모드 전환 ("AUTO")
+    res2 = send_water_control(serial, "AUTO")
+    
+    if res1 and res2:
         device_data["mode"] = "NFT"
         device_data["water_active"] = False
         device_data["end_timestamp"] = None
@@ -87,8 +91,9 @@ def check_and_auto_off_devices():
     for name, dev in st.session_state.devices.items():
         if dev.get("water_active") and dev.get("end_timestamp"):
             if now >= dev["end_timestamp"]:
-                # 💡 bool 타입 False 전달
-                send_water_control(dev["serial"], False)
+                send_water_control(dev["serial"], "OFF")
+                time.sleep(0.3)
+                send_water_control(dev["serial"], "AUTO")
                 dev["mode"] = "NFT"
                 dev["water_active"] = False
                 dev["end_timestamp"] = None
@@ -109,8 +114,7 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
             f"(총 설정 시간: {format_time(duration_seconds)})"
         )
         
-        # 💡 bool 타입 True 전달
-        if send_water_control(serial, True):
+        if send_water_control(serial, "ON"):
             dev_data["mode"] = "MANUAL"
             dev_data["water_active"] = True
             dev_data["end_timestamp"] = time.time() + duration_seconds
@@ -126,8 +130,9 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
                     text=f"[{dev_name}] 남은 시간: {time_str} (전체 진행률: {int(overall_progress * 100)}%)"
                 )
             
-            # 💡 bool 타입 False 전달
-            send_water_control(serial, False)
+            send_water_control(serial, "OFF")
+            time.sleep(0.3)
+            send_water_control(serial, "AUTO")
             
             dev_data["mode"] = "NFT"
             dev_data["water_active"] = False
@@ -142,19 +147,20 @@ def process_water_queue(selected_devices: list, duration_seconds: int):
     st.rerun()
 
 def sync_with_livos_server():
-    """서버 동기화 시 수동 급수 중인 타임스탬프 세션을 강제로 꺼뜨리지 않도록 보호"""
+    """수동 급수 중인 상태를 지키며 LIVOS 상태 동기화"""
     if "devices" not in st.session_state:
         return
 
     for dev_name, dev_data in st.session_state.devices.items():
-        # 앱 내에서 직접 켜둔 수동 급수 타이머가 동작 중일 때는 동기화 덮어쓰기 건너뜀
         if dev_data.get("water_active") and dev_data.get("end_timestamp"):
             continue
             
         try:
             server_info = get_device_status(dev_data["serial"])
             if server_info:
-                is_watering = server_info.get("waterActive", False) or server_info.get("pumpStatus", False)
+                # 백엔드의 waterLevel 응답값 체크
+                w_level = str(server_info.get("waterLevel", "")).upper()
+                is_watering = w_level == "ON" or server_info.get("waterActive", False)
                 dev_data["water_active"] = is_watering
                 if is_watering:
                     dev_data["mode"] = "MANUAL"
@@ -168,8 +174,9 @@ def stop_all_devices_and_set_nft():
 
     for dev_name, dev_data in st.session_state.devices.items():
         try:
-            # 💡 bool 타입 False 전달
-            send_water_control(dev_data["serial"], False)
+            send_water_control(dev_data["serial"], "OFF")
+            time.sleep(0.1)
+            send_water_control(dev_data["serial"], "AUTO")
         except Exception as e:
             print(f"[{dev_name}] 긴급 중단 API 실패: {e}")
 
