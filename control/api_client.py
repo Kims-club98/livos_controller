@@ -26,51 +26,33 @@ if USER_TOKEN:
     # 순수 토큰 값만 남기기
     USER_TOKEN = USER_TOKEN.strip().replace("token ", "").replace("Bearer ", "")
 
-def send_water_control(serial_number: str, action: str) -> bool:
+def send_water_control(serial_number: str, turn_on: bool) -> bool:
+    """LIVOS 장비에 급수 ON/OFF 명령을 전송합니다."""
     if not USER_TOKEN:
-        import streamlit as st
-        st.error("❌ LIVOS API 토큰이 설정되지 않았습니다.")
         return False
 
+    url = f"https://kr.api.livos.io/nanofarm/v1/nanofarm/control?serialNumber={serial_number}"
+    
+    # 💡 Boolean(True/False) 대신 서버가 요구하는 String 형태로 변환
+    # (서버 사양에 따라 "ON"/"OFF" 또는 "HIGH"/"OFF" 등으로 지정)
+    target_status = "ON" if turn_on else "OFF"
+    
     payload = {
-        "serialNumber": serial_number,
         "control": {
-            "waterLevel": action
+            "waterLevel": target_status  # String 타입으로 전달 (기존 bool 전달 시 422 에러 발생)
         }
     }
-    
-    # Knox Token 호환성을 위해 3가지 표준 포맷으로 시도
-    auth_formats = [
-        f"Bearer {USER_TOKEN}",
-        f"token {USER_TOKEN}",
-        USER_TOKEN
-    ]
-    
-    for auth_val in auth_formats:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": auth_val
-        }
-        
-        try:
-            response = requests.post(BASE_URL, json=payload, headers=headers, timeout=5)
-            print(f"[TRY AUTH] Header: {auth_val[:10]}... | Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                print(f"[SUCCESS] 시리얼: {serial_number} 급수 제어 성공!")
-                return True
-            elif response.status_code != 401:
-                # 401 이외의 에러(예: 400, 404 등)는 토큰 형식이 아닌 파라미터 문제이므로 중단
-                import streamlit as st
-                st.error(f"[{serial_number}] API 에러 ({response.status_code}): {response.text}")
-                return False
-        except Exception as e:
-            print(f"[ERROR]: {e}")
-            
-    # 3가지 방식 모두 401 실패 시 출력
-    import streamlit as st
-    st.error(f"[{serial_number}] 인증 실패 (401): 토큰 값이 만료되었거나 올바르지 않습니다.")
-    return False
+
+    try:
+        response = requests.post(url, json=payload, headers=HEADERS, timeout=5)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"[{serial_number}] 제어 실패 ({response.status_code}): {response.text}")
+            return False
+    except Exception as e:
+        print(f"[{serial_number}] API 통신 예외: {e}")
+        return False
 
 def get_device_status(serial_number: str) -> dict:
     """실제 LIVOS 서버에서 장비의 현재 상태(급수 여부 등)를 조회합니다."""
